@@ -19,6 +19,7 @@ dependencies {
 }
 
 application {
-    mainClassName='com.bscllc.consulplay.KVPlay'
+//    mainClassName='com.bscllc.consulplay.KVPlay'
+    mainClassName='com.bscllc.consulplay.SslTest'
 }
 

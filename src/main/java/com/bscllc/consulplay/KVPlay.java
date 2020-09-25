@@ -5,70 +5,119 @@ import com.orbitz.consul.HealthClient;
 import com.orbitz.consul.KeyValueClient;
 import com.orbitz.consul.model.health.ServiceHealth;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.util.List;
 
 public class KVPlay {
     public static void main(String... args) {
-        System.out.println("Hi");
+        try {
 
-        Consul client = Consul.builder().build(); // connect on localhost
+            KeyStore clientKeystore = KeyStore.getInstance("JKS");
+            KeyStore trustKeystore = KeyStore.getInstance("JKS");
 
-        HealthClient healthClient = client.healthClient();
+            FileInputStream trustIs = new FileInputStream("/Users/ebrown/certs2/consul-trust.jks");
 
-        System.out.println("--- Services");
+            trustKeystore.load(trustIs, "password".toCharArray());
+            trustIs.close();
 
-// Discover only "passing" nodes
-        List<ServiceHealth> nodes = healthClient.getHealthyServiceInstances("DataService").getResponse();
+            FileInputStream clientIs = new FileInputStream("/Users/ebrown/certs2/dc1-client-keystore.jks");
 
-        nodes.forEach(node -> {
-            System.out.format("Node: %s\n", node.toString());
-        });
+            clientKeystore.load(clientIs, "password".toCharArray());
+            clientIs.close();
 
-        System.out.println("---- End of service instances");
+            KeyManagerFactory keyManagerFactory =
+                    KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(clientKeystore, "password".toCharArray());
 
-        final KeyValueClient kvClient = client.keyValueClient();
+            TrustManagerFactory trustManagerFactory =
+                    TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(trustKeystore);
 
-        boolean worked;
+            SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
 
-        worked = kvClient.putValue("com.my.app.foo", "foo");
+            sslContext.init(
+                    keyManagerFactory.getKeyManagers(),
+                    trustManagerFactory.getTrustManagers(),
+                    new SecureRandom());
 
-        System.out.format("Did the last put work? %s\n", worked);
-        worked = kvClient.putValue("com.my.app.bar", "bar");
+            Consul.builder().withUrl("https://127.0.0.1:8501").withSslContext(sslContext).build();
 
-        System.out.format("Did the last put work? %s\n", worked);
-        worked = kvClient.putValue("com.your.app.foo", "hello");
+            Consul client = Consul.builder().build(); // connect on localhost
 
-        System.out.format("Did the last put work? %s\n", worked);
-        worked = kvClient.putValue("com.your.app.bar", "world");
+            HealthClient healthClient = client.healthClient();
 
-        System.out.format("Did the last put work? %s\n", worked);
+            System.out.println("--- Services");
+
+            List<ServiceHealth> nodes = healthClient.getHealthyServiceInstances("DataService").getResponse();
+
+            nodes.forEach(node -> {
+                System.out.format("Node: %s\n", node.toString());
+            });
+
+            System.out.println("---- End of service instances");
+
+            final KeyValueClient kvClient = client.keyValueClient();
+
+            boolean worked;
+
+            worked = kvClient.putValue("com.my.app.foo", "foo");
+
+            System.out.format("Did the last put work? %s\n", worked);
+            worked = kvClient.putValue("com.my.app.bar", "bar");
+
+            System.out.format("Did the last put work? %s\n", worked);
+            worked = kvClient.putValue("com.your.app.foo", "hello");
+
+            System.out.format("Did the last put work? %s\n", worked);
+            worked = kvClient.putValue("com.your.app.bar", "world");
+
+            System.out.format("Did the last put work? %s\n", worked);
 
 
-        String value = kvClient.getValueAsString("com.your.app.bar").get();
+            String value = kvClient.getValueAsString("com.your.app.bar").get();
 
-        System.out.format("The value retrieved '%s'\n", value);
+            System.out.format("The value retrieved '%s'\n", value);
 
-        List<String> list = kvClient.getValuesAsString("com");
+            List<String> list = kvClient.getValuesAsString("com");
 
-        System.out.println("--- com get list ---");
+            System.out.println("--- com get list ---");
 
-        list.forEach(val -> {
-            System.out.format("\t-- value: %s\n", val);
-        });
+            list.forEach(val -> {
+                System.out.format("\t-- value: %s\n", val);
+            });
 
-        System.out.println("--- End of list ----");
-//
-//// get single KV for key
-//        Response<GetValue> keyValueResponse = client.getKVValue("com.my.app.foo");
-//        System.out.println(keyValueResponse.getValue().getKey() + ": " + keyValueResponse.getValue().getDecodedValue()); // prints "com.my.app.foo: foo"
-//
-//// get list of KVs for key prefix (recursive)
-//        Response<List<GetValue>> keyValuesResponse = client.getKVValues("com.my");
-//        keyValuesResponse.getValue().forEach(value -> System.out.println(value.getKey() + ": " + value.getDecodedValue())); // prints "com.my.app.foo: foo" and "com.my.app.bar: bar"
-//
-////list known datacenters
-//        Response<List<String>> response = client.getCatalogDatacenters();
-//        System.out.println("Datacenters: " + response.getValue());
+            System.out.println("--- End of list ----");
+
+        }
+        catch(NullPointerException npe) {
+            npe.printStackTrace();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (KeyManagementException e) {
+            e.printStackTrace();
+        } catch (CertificateException e) {
+            e.printStackTrace();
+        } catch (KeyStoreException e) {
+            e.printStackTrace();
+        } catch (UnrecoverableKeyException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
     }
 
